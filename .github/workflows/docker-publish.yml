@@ -102,7 +102,7 @@ jobs:
           echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u ${{ github.actor }} --password-stdin
           helm push /tmp/charts/manup-$VERSION.tgz oci://ghcr.io/${{ github.repository_owner }}/charts || true
 
-      - name: Create draft GitHub Release
+      - name: Publish GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -110,31 +110,51 @@ jobs:
           TAG="${GITHUB_REF#refs/tags/}"
           VERSION="${TAG#v}"
 
-          if gh release view "$TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
-            echo "Release $TAG already exists, skipping."
-            exit 0
+          NOTES_FILE="/tmp/release-notes.md"
+          
+          # Check if tag-specific release notes exist in releases/${TAG}.md or root RELEASE_NOTES.md
+          if [ -f "releases/${TAG}.md" ]; then
+            echo "Using release notes from releases/${TAG}.md"
+            cat "releases/${TAG}.md" > "$NOTES_FILE"
+          elif [ -f "RELEASE_NOTES.md" ]; then
+            echo "Using release notes from RELEASE_NOTES.md"
+            cat "RELEASE_NOTES.md" > "$NOTES_FILE"
+          else
+            echo "## ManUp Kubernetes Suite $TAG" > "$NOTES_FILE"
           fi
 
-          NOTES_FILE="/tmp/release-notes.md"
-          cat > "$NOTES_FILE" <<EOF
-          ## ManUp Kubernetes Suite $TAG
+          # Append standard installation and docker pull instructions
+          cat >> "$NOTES_FILE" <<EOF
 
-          ### 📦 Helm Chart
-          Install directly from this release:
-          \`\`\`bash
-          helm install manup https://github.com/${{ github.repository }}/releases/download/$TAG/manup-$VERSION.tgz
-          \`\`\`
+---
 
-          ### 🐳 Injector Docker Image
-          \`\`\`bash
-          docker pull procoder588/manup-injector:$VERSION
-          # or
-          docker pull ghcr.io/${{ github.repository }}-injector:$VERSION
-          \`\`\`
-          EOF
+### 📦 Helm Chart Installation
+\`\`\`bash
+helm install manup https://github.com/${{ github.repository }}/releases/download/$TAG/manup-$VERSION.tgz \\
+  --namespace manup --create-namespace \\
+  --set injector.enabled=true
+\`\`\`
 
-          gh release create "$TAG" /tmp/charts/*.tgz \
-            --repo "${{ github.repository }}" \
-            --draft \
-            --title "ManUp K8s Release $TAG" \
-            --notes-file "$NOTES_FILE"
+### 🐳 Injector Docker Images
+\`\`\`bash
+docker pull procoder588/manup-injector:$VERSION
+# or
+docker pull ghcr.io/${{ github.repository }}-injector:$VERSION
+\`\`\`
+EOF
+
+          if gh release view "$TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            echo "Updating existing release $TAG..."
+            gh release edit "$TAG" \
+              --repo "${{ github.repository }}" \
+              --draft=false \
+              --title "ManUp K8s Release $TAG" \
+              --notes-file "$NOTES_FILE"
+            gh release upload "$TAG" /tmp/charts/*.tgz --clobber --repo "${{ github.repository }}" || true
+          else
+            echo "Creating and publishing release $TAG..."
+            gh release create "$TAG" /tmp/charts/*.tgz \
+              --repo "${{ github.repository }}" \
+              --title "ManUp K8s Release $TAG" \
+              --notes-file "$NOTES_FILE"
+          fi
