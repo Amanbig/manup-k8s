@@ -6,7 +6,7 @@
 [![Helm](https://img.shields.io/badge/Helm-v3-0F1689?logo=helm)](https://helm.sh)
 [![Docker](https://img.shields.io/badge/Docker-Multi--Arch-2496ED?logo=docker)](https://hub.docker.com/r/procoder588/manup)
 
-Official Kubernetes integration suite for **[ManUp](https://github.com/procoder588/manup)** — the modern self-hosted secrets & credential management vault.
+Official Kubernetes integration suite for **[ManUp](https://github.com/Amanbig/manup)** — the modern self-hosted secrets & credential management vault.
 
 This repository provides:
 1. **Official Helm Chart** (`charts/manup`): Production-grade deployment for the ManUp server with embedded persistence (PGLite) or external PostgreSQL, Ingress, and health monitoring.
