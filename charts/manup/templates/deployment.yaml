@@ -1,0 +1,119 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "manup.fullname" . }}
+  labels:
+    {{- include "manup.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "manup.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "manup.selectorLabels" . | nindent 8 }}
+      {{- if or .Values.podAnnotations .Values.vault.enabled }}
+      annotations:
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- if .Values.vault.enabled }}
+        vault.hashicorp.com/agent-inject: "true"
+        vault.hashicorp.com/role: {{ .Values.vault.role | quote }}
+        {{- if .Values.vault.authPath }}
+        vault.hashicorp.com/auth-path: {{ .Values.vault.authPath | quote }}
+        {{- end }}
+        {{- if .Values.vault.serverUrl }}
+        vault.hashicorp.com/server-url: {{ .Values.vault.serverUrl | quote }}
+        {{- end }}
+        vault.hashicorp.com/agent-inject-secret-{{ .Values.vault.secretFileName | replace "." "_" }}: {{ .Values.vault.secretPath | quote }}
+        vault.hashicorp.com/agent-inject-template-{{ .Values.vault.secretFileName | replace "." "_" }}: |
+          {{- if .Values.vault.customTemplate }}
+          {{- .Values.vault.customTemplate | nindent 10 }}
+          {{- else }}
+          {{ `{{- with secret ` }}{{ .Values.vault.secretPath | quote }}{{ ` -}}` }}
+          {{ `{{- if .Data.data -}}` }}
+          {{ `{{- range $k, $v := .Data.data }}` }}
+          export {{ `{{ $k }}="{{ $v }}"` }}
+          {{ `{{- end -}}` }}
+          {{ `{{- else -}}` }}
+          {{ `{{- range $k, $v := .Data }}` }}
+          export {{ `{{ $k }}="{{ $v }}"` }}
+          {{ `{{- end -}}` }}
+          {{ `{{- end -}}` }}
+          {{ `{{- end -}}` }}
+          {{- end }}
+        {{- with .Values.vault.extraAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- end }}
+      {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "manup.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- if and .Values.vault.enabled .Values.vault.sourceEnvFile }}
+          command:
+            - /bin/sh
+            - -c
+            - |
+              if [ -f /vault/secrets/{{ .Values.vault.secretFileName }} ]; then
+                . /vault/secrets/{{ .Values.vault.secretFileName }}
+              fi
+              exec node dist/index.js
+          {{- end }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.targetPort }}
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: {{ include "manup.fullname" . }}-config
+            {{- if not .Values.vault.enabled }}
+            - secretRef:
+                name: {{ include "manup.secretName" . }}
+            {{- end }}
+          {{- with .Values.livenessProbe }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.readinessProbe }}
+          readinessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          {{- if .Values.persistence.enabled }}
+          volumeMounts:
+            - name: data
+              mountPath: {{ .Values.persistence.mountPath }}
+          {{- end }}
+      {{- if .Values.persistence.enabled }}
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ default (printf "%s-data" (include "manup.fullname" .)) .Values.persistence.existingClaim }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

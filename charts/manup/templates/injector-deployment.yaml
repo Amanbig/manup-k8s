@@ -1,0 +1,68 @@
+{{- if .Values.injector.enabled -}}
+{{- $serviceName := printf "%s-injector" (include "manup.fullname" .) -}}
+{{- $secretName := printf "%s-injector-tls" (include "manup.fullname" .) -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $serviceName }}
+  labels:
+    {{- include "manup.labels" . | nindent 4 }}
+    app.kubernetes.io/component: injector
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "manup.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: injector
+  template:
+    metadata:
+      labels:
+        {{- include "manup.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: injector
+    spec:
+      serviceAccountName: {{ include "manup.fullname" . }}-injector
+      containers:
+        - name: injector
+          image: "{{ .Values.injector.image.repository }}:{{ .Values.injector.image.tag | default "latest" }}"
+          imagePullPolicy: {{ .Values.injector.image.pullPolicy }}
+          args:
+            - "-service-name={{ $serviceName }}"
+            - "-namespace={{ .Release.Namespace }}"
+            - "-port={{ .Values.injector.port }}"
+            - "-tls-cert-file=/etc/webhook/certs/tls.crt"
+            - "-tls-key-file=/etc/webhook/certs/tls.key"
+          env:
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: DEFAULT_MANUP_URL
+              value: "http://{{ include "manup.fullname" . }}:{{ .Values.service.port }}"
+          ports:
+            - name: webhook
+              containerPort: {{ .Values.injector.port }}
+          volumeMounts:
+            - name: webhook-certs
+              mountPath: /etc/webhook/certs
+              readOnly: true
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: webhook
+              scheme: HTTPS
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: webhook
+              scheme: HTTPS
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          resources:
+            {{- toYaml .Values.injector.resources | nindent 12 }}
+      volumes:
+        - name: webhook-certs
+          secret:
+            secretName: {{ $secretName }}
+{{- end }}

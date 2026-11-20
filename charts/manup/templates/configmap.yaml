@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "manup.fullname" . }}-config
+  labels:
+    {{- include "manup.labels" . | nindent 4 }}
+data:
+  DB_TYPE: {{ .Values.config.dbType | quote }}
+  DB_DIR: {{ .Values.config.dbDir | quote }}
+  PORT: {{ .Values.config.port | quote }}
+  {{- if ne .Values.config.enableSignup "" }}
+  ENABLE_SIGNUP: {{ .Values.config.enableSignup | quote }}
+  {{- end }}
+  DEFAULT_ADMIN_NAME: {{ .Values.config.defaultAdminName | quote }}
+  DEFAULT_ADMIN_USERNAME: {{ .Values.config.defaultAdminUsername | quote }}
+  {{- if .Values.config.smtp.host }}
+  SMTP_HOST: {{ .Values.config.smtp.host | quote }}
+  SMTP_PORT: {{ .Values.config.smtp.port | quote }}
+  SMTP_USER: {{ .Values.config.smtp.user | quote }}
+  SMTP_FROM: {{ .Values.config.smtp.from | quote }}
+  {{- end }}

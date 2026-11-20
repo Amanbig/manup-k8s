@@ -1,0 +1,162 @@
+# Default values for manup.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+replicaCount: 1
+
+image:
+  repository: procoder588/manup
+  pullPolicy: IfNotPresent
+  # Overrides the image tag whose default is the chart appVersion.
+  tag: ""
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  # Annotations to add to the service account
+  annotations: {}
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
+
+podAnnotations: {}
+
+podSecurityContext:
+  fsGroup: 1000
+
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+
+service:
+  type: ClusterIP
+  port: 7780
+  targetPort: 7780
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+    # kubernetes.io/ingress.class: nginx
+    # cert-manager.io/cluster-issuer: letsencrypt-prod
+  hosts:
+    - host: manup.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+  #  - secretName: manup-tls
+  #    hosts:
+  #      - manup.example.com
+
+resources:
+  limits:
+    cpu: 1000m
+    memory: 1024Mi
+  requests:
+    cpu: 100m
+    memory: 256Mi
+
+# Health check probes (ManUp provides a database-aware /health endpoint)
+livenessProbe:
+  httpGet:
+    path: /health
+    port: http
+  initialDelaySeconds: 15
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+readinessProbe:
+  httpGet:
+    path: /health
+    port: http
+  initialDelaySeconds: 10
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+# Data persistence (Required when DB_TYPE is PGLITE)
+persistence:
+  enabled: true
+  accessMode: ReadWriteOnce
+  size: 5Gi
+  # storageClass: "-"
+  mountPath: /app/manup
+  existingClaim: ""
+
+# General application configuration
+config:
+  dbType: "PGLITE" # "PGLITE" or "POSTGRES"
+  dbDir: "/app/manup"
+  port: 7780
+  # Set to "true" or "false" to explicitly enable/disable public signups.
+  # If empty, disabled automatically when default admin credentials are set.
+  enableSignup: ""
+  defaultAdminName: "Admin User"
+  defaultAdminUsername: "admin"
+  smtp:
+    host: ""
+    port: 587
+    user: ""
+    pass: ""
+    from: "ManUp Secure Vault <no-reply@manup.io>"
+
+# Kubernetes Secrets fallback (used when HashiCorp Vault is NOT enabled)
+secrets:
+  create: true
+  existingSecret: ""
+  # MASTER_KEY: Encryption key (Must be 32 bytes for aes-256-gcm)
+  masterKey: "generate_a_secure_32_byte_key_here!"
+  jwtSecret: "change_me_super_secret_jwt_key_2026"
+  refreshTokenSecret: "change_me_super_secret_refresh_key_2026"
+  defaultAdminEmail: "admin@manup.io"
+  defaultAdminPassword: "adminpassword123"
+  # DATABASE_URL: Required when DB_TYPE is "POSTGRES"
+  databaseUrl: ""
+
+# HashiCorp Vault Sidecar Agent direct secret injection
+vault:
+  # Enable direct injection via HashiCorp Vault Agent Sidecar
+  enabled: false
+  # Vault Kubernetes authentication role
+  role: "manup-role"
+  # Vault KV secret path (e.g. secret/data/manup for KV v2 or secret/manup for KV v1)
+  secretPath: "secret/data/manup"
+  # Optional custom auth path if Kubernetes auth is mounted on non-default path
+  authPath: ""
+  # Optional Vault server address if external or non-standard cluster URL
+  serverUrl: ""
+  # File inside /vault/secrets where the environment file is created
+  secretFileName: "config.env"
+  # Sourcing wrapper: runs '. /vault/secrets/config.env' before starting node
+  sourceEnvFile: true
+  # Custom template override for Vault Agent injector (if empty, standard template is used)
+  customTemplate: ""
+  # Extra annotations for vault agent injector
+  extraAnnotations: {}
+
+# ManUp Kubernetes Mutating Webhook Injector Controller
+# When enabled, intercepts any pod with 'manup.io/inject: "true"' and auto-injects secrets
+injector:
+  enabled: false
+  image:
+    repository: procoder588/manup-injector
+    pullPolicy: IfNotPresent
+    tag: "latest"
+  resources:
+    limits:
+      cpu: 200m
+      memory: 128Mi
+    requests:
+      cpu: 50m
+      memory: 64Mi
+  port: 8443
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

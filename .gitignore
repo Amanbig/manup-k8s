@@ -1,0 +1,32 @@
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+manup-injector
+injector/manup-injector
+
+# Test artifacts
+*.test
+*.out
+
+# Certificates and keys
+*.crt
+*.key
+*.csr
+*.pem
+deploy/*.crt
+deploy/*.key
+deploy/*.csr
+injector/deploy/*.crt
+injector/deploy/*.key
+injector/deploy/*.csr
+
+# Helm package files
+*.tgz
+
+# OS / Editor
+.DS_Store
+.idea/
+.vscode/

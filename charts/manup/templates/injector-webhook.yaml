@@ -1,0 +1,48 @@
+{{- if .Values.injector.enabled -}}
+{{- $serviceName := printf "%s-injector" (include "manup.fullname" .) -}}
+{{- $secretName := printf "%s-injector-tls" (include "manup.fullname" .) -}}
+{{- $ca := genCA "manup-injector-ca" 3650 -}}
+{{- $altNames := list $serviceName (printf "%s.%s" $serviceName .Release.Namespace) (printf "%s.%s.svc" $serviceName .Release.Namespace) (printf "%s.%s.svc.cluster.local" $serviceName .Release.Namespace) "localhost" -}}
+{{- $cert := genSignedCert (printf "%s.%s.svc" $serviceName .Release.Namespace) nil $altNames 1825 $ca -}}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ $secretName }}
+  labels:
+    {{- include "manup.labels" . | nindent 4 }}
+    app.kubernetes.io/component: injector
+type: kubernetes.io/tls
+data:
+  tls.crt: {{ $cert.Cert | b64enc }}
+  tls.key: {{ $cert.Key | b64enc }}
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  name: {{ include "manup.fullname" . }}-injector
+  labels:
+    {{- include "manup.labels" . | nindent 4 }}
+    app.kubernetes.io/component: injector
+webhooks:
+  - name: injector.manup.io
+    admissionReviewVersions: ["v1"]
+    sideEffects: None
+    timeoutSeconds: 10
+    failurePolicy: Fail
+    clientConfig:
+      service:
+        name: {{ $serviceName }}
+        namespace: {{ .Release.Namespace }}
+        path: /mutate
+      caBundle: {{ $ca.Cert | b64enc }}
+    rules:
+      - operations: ["CREATE"]
+        apiGroups: [""]
+        apiVersions: ["v1"]
+        resources: ["pods"]
+    namespaceSelector:
+      matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: NotIn
+          values: ["kube-system", "kube-public", "kube-node-lease", {{ .Release.Namespace | quote }}]
+{{- end }}

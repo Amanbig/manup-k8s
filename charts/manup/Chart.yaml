@@ -1,0 +1,16 @@
+apiVersion: v2
+name: manup
+description: A Helm chart for ManUp - Modern self-hosted secrets & credential management vault
+type: application
+version: 0.1.0
+appVersion: "0.5.0"
+keywords:
+  - manup
+  - vault
+  - secrets-manager
+  - security
+home: https://github.com/procoder588/manup
+sources:
+  - https://github.com/procoder588/manup
+maintainers:
+  - name: amanpreet

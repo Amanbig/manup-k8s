@@ -1,0 +1,7 @@
+.git
+.github
+deploy
+*.md
+manup-injector
+.gitignore
+.dockerignore

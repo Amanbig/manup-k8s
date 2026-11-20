@@ -1,0 +1,17 @@
+{{- if .Values.injector.enabled -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "manup.fullname" . }}-injector
+  labels:
+    {{- include "manup.labels" . | nindent 4 }}
+    app.kubernetes.io/component: injector
+spec:
+  ports:
+    - name: https
+      port: 443
+      targetPort: webhook
+  selector:
+    {{- include "manup.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: injector
+{{- end }}

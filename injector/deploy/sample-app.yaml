@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo-app
+  namespace: default
+  labels:
+    app: demo-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: demo-app
+  template:
+    metadata:
+      labels:
+        app: demo-app
+      annotations:
+        # Enable automatic injection by the ManUp Controller
+        manup.io/inject: "true"
+        # The project name in ManUp
+        manup.io/project: "payments"
+        # The environment in ManUp (default is prod)
+        manup.io/env: "production"
+        # Secret containing your ManUp API key
+        manup.io/api-key-secret: "manup-api-key"
+        # Where to mount the decrypted secrets inside the app container
+        manup.io/mount-path: "/app/secrets"
+        manup.io/file-name: ".env"
+    spec:
+      containers:
+        - name: app
+          image: alpine:latest
+          command:
+            - /bin/sh
+            - -c
+            - |
+              echo "Starting application..."
+              if [ -f /app/secrets/.env ]; then
+                echo "Successfully loaded injected secrets from ManUp!"
+                cat /app/secrets/.env
+              else
+                echo "No secrets found!"
+              fi
+              sleep 3600
