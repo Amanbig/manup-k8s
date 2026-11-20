@@ -18,7 +18,7 @@ spec:
       serviceAccountName: manup-injector
       containers:
         - name: injector
-          image: manup-injector:latest
+          image: procoder588/manup-injector:latest
           imagePullPolicy: IfNotPresent
           args:
             - "-service-name=manup-injector"
