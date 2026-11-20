@@ -79,12 +79,12 @@ manup-k8s/
 
 You can install ManUp and the Secret Injector either directly from the **published GitHub Release package** or from **cloned source**. Both use the pre-built Docker Hub images (`procoder588/manup:latest` and `procoder588/manup-injector:latest`).
 
-### Option 1: Direct Install via GitHub Release (Recommended)
+### Option 1: Direct Install (Always Latest Release)
 
-No git clone needed! Install directly using the released chart archive:
+No git clone needed! This command automatically downloads and installs the latest stable release:
 
 ```bash
-helm install manup https://github.com/Amanbig/manup-k8s/releases/download/v0.1.0/manup-0.1.0.tgz \
+helm install manup https://github.com/Amanbig/manup-k8s/releases/latest/download/manup.tgz \
   --namespace manup --create-namespace \
   --set injector.enabled=true \
   --set secrets.masterKey="9a8b7c6d5e4f3g2h1i0j9k8l7m6n5o4p" \
@@ -93,7 +93,21 @@ helm install manup https://github.com/Amanbig/manup-k8s/releases/download/v0.1.0
   --set secrets.defaultAdminPassword="adminpassword123"
 ```
 
-### Option 2: Install from Cloned Repository
+*(Alternatively, to install a specific historical version, replace `latest/download/manup.tgz` with `download/v0.1.0/manup-0.1.0.tgz`).*
+
+### Option 2: Install via OCI Registry (GHCR)
+
+```bash
+helm install manup oci://ghcr.io/amanbig/charts/manup \
+  --namespace manup --create-namespace \
+  --set injector.enabled=true \
+  --set secrets.masterKey="9a8b7c6d5e4f3g2h1i0j9k8l7m6n5o4p" \
+  --set secrets.jwtSecret="super_secret_jwt_sign_key_manup_2026" \
+  --set secrets.refreshTokenSecret="a_different_refresh_token_sign_key_2026" \
+  --set secrets.defaultAdminPassword="adminpassword123"
+```
+
+### Option 3: Install from Cloned Repository
 
 ```bash
 git clone https://github.com/Amanbig/manup-k8s.git

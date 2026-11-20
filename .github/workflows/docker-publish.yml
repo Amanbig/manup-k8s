@@ -96,6 +96,7 @@ jobs:
           mkdir -p /tmp/charts
           echo "Packaging Helm chart with version $VERSION..."
           helm package charts/manup --version "$VERSION" --destination /tmp/charts
+          cp "/tmp/charts/manup-$VERSION.tgz" /tmp/charts/manup.tgz
 
           # Login to GHCR and push Helm chart as an OCI artifact
           echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u ${{ github.actor }} --password-stdin
