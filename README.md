@@ -1,6 +1,50 @@
 # ManUp Kubernetes Suite (`manup-k8s`)
 
-This repository contains the Kubernetes deployment tooling for [ManUp](https://github.com/procoder588/manup), including the official **Helm Chart** and the **Mutating Admission Controller (`manup-injector`)**.
+[![CI](https://github.com/Amanbig/manup-k8s/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/Amanbig/manup-k8s/actions)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Go Version](https://img.shields.io/badge/Go-1.24%2B-00ADD8?logo=go)](https://golang.org)
+[![Helm](https://img.shields.io/badge/Helm-v3-0F1689?logo=helm)](https://helm.sh)
+[![Docker](https://img.shields.io/badge/Docker-Multi--Arch-2496ED?logo=docker)](https://hub.docker.com/r/procoder588/manup)
+
+Official Kubernetes integration suite for **[ManUp](https://github.com/procoder588/manup)** — the modern self-hosted secrets & credential management vault.
+
+This repository provides:
+1. **Official Helm Chart** (`charts/manup`): Production-grade deployment for the ManUp server with embedded persistence (PGLite) or external PostgreSQL, Ingress, and health monitoring.
+2. **Mutating Admission Webhook Controller** (`injector`): An admission controller (similar to HashiCorp's `vault-k8s`) that automatically intercepts Pod creation and injects decrypted secrets into in-memory RAM volumes.
+
+---
+
+## 🏗️ Architecture
+
+```text
+ 1. Developer applies Deployment with annotations:
+    annotations:
+      manup.io/inject: "true"
+      manup.io/project: "payments"
+      manup.io/env: "production"
+              │
+              ▼
+ 2. Kubernetes API Server intercepts Pod creation (AdmissionReview)
+              │
+              ▼
+ 3. manup-injector Controller patches the Pod:
+    • Adds in-memory RAM volume (tmpfs: medium: Memory)
+    • Injects lightweight init-container (manup-secrets-init)
+    • Mounts RAM volume read-only into application container(s)
+              │
+              ▼
+ 4. Pod runs: Secrets loaded in RAM before application code starts!
+```
+
+---
+
+## ⚡ Highlights & Features
+
+- **Zero-Storage in Kubernetes etcd**: Secrets are fetched dynamically and kept exclusively in a `tmpfs` RAM volume (`medium: Memory`). Plaintext secrets never touch physical disks or Kubernetes etcd.
+- **Zero-Config TLS**: The Helm chart automatically provisions internal CA and webhook server certificates on the fly using Helm's native cryptographic engine—no `cert-manager` required.
+- **Scoped API Key Isolation**: Supports project-level and environment-level API keys. An API key provisioned for `dev` is rejected if requested for `production`.
+- **Developer-Friendly**: No manual volume mounts or curl commands needed in application manifests. Add 3 annotations and deploy.
+- **Dual Support**: Supports both **ManUp direct injection** and **HashiCorp Vault sidecar injection**.
 
 ---
 
@@ -9,23 +53,33 @@ This repository contains the Kubernetes deployment tooling for [ManUp](https://g
 ```text
 manup-k8s/
 ├── charts/
-│   └── manup/                    # Official Helm Chart (ManUp Server + Injector)
-├── injector/                     # Go Mutating Admission Webhook Controller
-│   ├── main.go
-│   ├── webhook.go
-│   ├── tls.go
-│   ├── Dockerfile
-│   └── deploy/                   # Standalone raw manifests
+│   └── manup/                      # Production Helm Chart
+│       ├── Chart.yaml
+│       ├── values.yaml             # Complete configuration reference
+│       └── templates/              # Deployment, PVC, Service, Webhook manifests
+├── injector/                       # Go Mutating Admission Webhook Controller
+│   ├── main.go                     # Webhook server & entrypoint
+│   ├── webhook.go                  # Mutation logic & JSON patch generator
+│   ├── tls.go                      # Self-signed certificate generator
+│   ├── webhook_test.go             # Unit tests
+│   ├── Dockerfile                  # Lightweight multi-stage build (~6.5MB)
+│   └── deploy/                     # Raw manifests & install script
+├── docs/                           # Deep-dive documentation
+│   ├── annotations.md              # Complete annotation reference & options
+│   ├── architecture.md             # Architectural lifecycle & flow diagrams
+│   └── application-guides.md       # Integration guide for Node, Python, Go, Java
 └── .github/
     └── workflows/
-        └── docker-publish.yml    # Multi-arch automated tag build & push
+        └── docker-publish.yml      # Tag-based multi-arch build & release workflow
 ```
 
 ---
 
-## 🚀 Quick Start: Deploying ManUp to Kubernetes
+## 🚀 Quick Start
 
-### 1. Install via Helm (with Auto Secret Injector)
+### 1. Install ManUp & Injector via Helm
+
+Deploy ManUp along with the Mutating Injector Controller:
 
 ```bash
 helm install manup ./charts/manup \
@@ -37,38 +91,86 @@ helm install manup ./charts/manup \
   --set secrets.defaultAdminPassword="adminpassword123"
 ```
 
-### 2. Auto-Inject Secrets into Any Application
+### 2. Store Your ManUp API Key in Kubernetes
 
-Once installed, annotate any Pod or Deployment in your cluster:
+In ManUp, create a project (e.g. `billing`) and an API Key. Save the API key in a secret in your application's namespace:
+
+```bash
+kubectl create secret generic manup-api-key \
+  --from-literal=MANUP_API_KEY="mp_your_manup_api_key_here"
+```
+
+### 3. Deploy Your Application (With Automatic Secret Injection)
+
+Annotate your application Deployment:
 
 ```yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: demo-service
+  name: billing-service
 spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: billing-service
   template:
     metadata:
+      labels:
+        app: billing-service
       annotations:
+        # Enable secret injection
         manup.io/inject: "true"
-        manup.io/project: "payments"
+        # Project and environment in ManUp
+        manup.io/project: "billing"
         manup.io/env: "production"
+        # Name of secret containing MANUP_API_KEY
         manup.io/api-key-secret: "manup-api-key"
+        # Target in-memory mount path inside your app
         manup.io/mount-path: "/app/secrets"
+        manup.io/file-name: ".env"
     spec:
       containers:
         - name: app
-          image: node:20-alpine
-          command: ["sh", "-c", "cat /app/secrets/.env && node index.js"]
+          image: my-company/billing-service:latest
+          # Application automatically reads /app/secrets/.env
 ```
-
-The controller intercepts the pod creation, mounts an in-memory `tmpfs` volume, queries ManUp via the scoped API key, and mounts the decrypted `.env` file directly into your container!
 
 ---
 
-## 🔒 HashiCorp Vault Integration (Alternative)
+## 📋 Annotation Reference
 
-If you use HashiCorp Vault as an external key management system, ManUp itself can have its secrets directly injected via HashiCorp Vault Agent sidecar:
+| Annotation | Description | Default |
+|---|---|---|
+| `manup.io/inject` | Set to `"true"` to trigger automatic secret injection | `"false"` |
+| `manup.io/project` | Name of the project in ManUp | *(Required)* |
+| `manup.io/env` | Target environment in ManUp (`production`, `staging`, `dev`) | `"prod"` |
+| `manup.io/server-url` | Internal URL of ManUp service | `http://manup.manup.svc:7780` |
+| `manup.io/api-key-secret` | Kubernetes secret name containing your ManUp API key | `manup-api-key` |
+| `manup.io/api-key-secret-key` | Key inside the secret containing the API key | `MANUP_API_KEY` |
+| `manup.io/mount-path` | Directory mounted in RAM inside your application container | `/app/secrets` |
+| `manup.io/file-name` | File name inside the mount path | `.env` |
+
+👉 *For the full annotations guide and cross-environment isolation, see [docs/annotations.md](docs/annotations.md).*
+
+---
+
+## 💻 Application Integration
+
+Secrets are formatted as standard `.env` key-value pairs in memory. Loading them in popular frameworks requires zero custom code:
+
+- **Node.js**: `import 'dotenv/config'` or `require('dotenv').config({ path: '/app/secrets/.env' })`
+- **Python**: `from dotenv import load_dotenv; load_dotenv('/app/secrets/.env')`
+- **Go**: `godotenv.Load("/app/secrets/.env")`
+- **Shell / Any Binary**: `. /app/secrets/.env && exec ./my-binary`
+
+👉 *For code examples in Node.js, Python, Go, and Java, see [docs/application-guides.md](docs/application-guides.md).*
+
+---
+
+## 🔒 Alternative: HashiCorp Vault Direct Secret Injection
+
+If your organization uses **HashiCorp Vault**, you can deploy ManUp with direct Vault agent injection by enabling it in `values.yaml`:
 
 ```bash
 helm install manup ./charts/manup \
@@ -80,15 +182,21 @@ helm install manup ./charts/manup \
 
 ---
 
-## 🛠️ Automated CI/CD Releases
+## 📦 Automated Release Pipeline
 
-Docker images for `manup-injector` are built automatically on tag pushes:
+The repository includes a GitHub Actions workflow that synchronizes versions across **both the Docker image and Helm Chart**:
 
 ```bash
 git tag v0.1.0
 git push origin v0.1.0
 ```
 
-Required GitHub Secrets:
-- `DOCKERHUB_USERNAME`
-- `DOCKERHUB_TOKEN`
+1. **Builds multi-arch images** (`linux/amd64`, `linux/arm64`) and pushes `procoder588/manup-injector:0.1.0` and `:latest` to Docker Hub and GHCR.
+2. **Packages the Helm Chart** as `manup-0.1.0.tgz`.
+3. **Creates a draft GitHub Release** with the packaged chart attached.
+
+---
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
