@@ -147,7 +147,8 @@ injector:
   image:
     repository: procoder588/manup-injector
     pullPolicy: IfNotPresent
-    tag: "latest"
+    # Overrides image tag; default is the chart version.
+    tag: ""
   resources:
     limits:
       cpu: 200m
