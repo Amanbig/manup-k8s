@@ -88,7 +88,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         uses: azure/setup-helm@v4
 
-      - name: Package Helm Chart
+      - name: Package & Publish Helm Chart (OCI & Release)
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
           TAG="${GITHUB_REF#refs/tags/}"
@@ -96,6 +96,10 @@ jobs:
           mkdir -p /tmp/charts
           echo "Packaging Helm chart with version $VERSION..."
           helm package charts/manup --version "$VERSION" --destination /tmp/charts
+
+          # Login to GHCR and push Helm chart as an OCI artifact
+          echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u ${{ github.actor }} --password-stdin
+          helm push /tmp/charts/manup-$VERSION.tgz oci://ghcr.io/${{ github.repository_owner }}/charts || true
 
       - name: Create draft GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')

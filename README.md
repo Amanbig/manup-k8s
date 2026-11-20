@@ -75,13 +75,30 @@ manup-k8s/
 
 ---
 
-## 🚀 Quick Start
+## 🚀 Installation & Quick Start
 
-### 1. Install ManUp & Injector via Helm
+You can install ManUp and the Secret Injector either directly from the **published GitHub Release package** or from **cloned source**. Both use the pre-built Docker Hub images (`procoder588/manup:latest` and `procoder588/manup-injector:latest`).
 
-Deploy ManUp along with the Mutating Injector Controller:
+### Option 1: Direct Install via GitHub Release (Recommended)
+
+No git clone needed! Install directly using the released chart archive:
 
 ```bash
+helm install manup https://github.com/Amanbig/manup-k8s/releases/download/v0.1.0/manup-0.1.0.tgz \
+  --namespace manup --create-namespace \
+  --set injector.enabled=true \
+  --set secrets.masterKey="9a8b7c6d5e4f3g2h1i0j9k8l7m6n5o4p" \
+  --set secrets.jwtSecret="super_secret_jwt_sign_key_manup_2026" \
+  --set secrets.refreshTokenSecret="a_different_refresh_token_sign_key_2026" \
+  --set secrets.defaultAdminPassword="adminpassword123"
+```
+
+### Option 2: Install from Cloned Repository
+
+```bash
+git clone https://github.com/Amanbig/manup-k8s.git
+cd manup-k8s
+
 helm install manup ./charts/manup \
   --namespace manup --create-namespace \
   --set injector.enabled=true \
@@ -91,7 +108,9 @@ helm install manup ./charts/manup \
   --set secrets.defaultAdminPassword="adminpassword123"
 ```
 
-### 2. Store Your ManUp API Key in Kubernetes
+---
+
+### Step 2: Store Your ManUp API Key in Kubernetes
 
 In ManUp, create a project (e.g. `billing`) and an API Key. Save the API key in a secret in your application's namespace:
 
